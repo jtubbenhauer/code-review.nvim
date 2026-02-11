@@ -2,6 +2,8 @@ I am now a full-time code reviewer and needed a tool to help me wade through the
 
 ---
 
+<img width="1388" height="981" alt="image" src="https://github.com/user-attachments/assets/1661442a-d998-4337-9132-bfdc17a75681" />
+
 # code-review.nvim
 
 A Neovim plugin for reviewing code changes with a persistent file tree and gitsigns integration.
