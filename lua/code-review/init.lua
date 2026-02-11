@@ -7,24 +7,9 @@ local state = require("code-review.state")
 local ui = require("code-review.ui")
 local autocmds = require("code-review.autocmds")
 
--- Start or switch to a review session
----@param branch? string Branch to diff against (default: config.default_branch)
-function M.start(branch)
-	branch = branch or config.options.default_branch
-
-	-- If already active with same branch, just switch to tab
-	if state.state.active and state.state.branch == branch then
-		if ui.switch_to_tab() then
-			return
-		end
-		-- Tab was closed, recreate
-	end
-
-	-- If active with different branch, close first
-	if state.state.active then
-		M.close()
-	end
-
+-- Start or switch to a review session (internal, no confirmation)
+---@param branch string Branch to diff against
+local function start_review(branch)
 	-- Initialize state
 	if not state.init(branch) then
 		return
@@ -52,6 +37,53 @@ function M.start(branch)
 		),
 		vim.log.levels.INFO
 	)
+end
+
+-- Start or switch to a review session
+---@param branch? string Branch to diff against (default: config.default_branch)
+---@param opts? { force?: boolean } Options (force: skip confirmation)
+function M.start(branch, opts)
+	branch = branch or config.options.default_branch
+	opts = opts or {}
+
+	-- If already active with same branch, just switch to tab
+	if state.state.active and state.state.branch == branch then
+		if ui.switch_to_tab() then
+			return
+		end
+		-- Tab was closed, recreate UI without reinitializing state
+		ui.create_layout()
+		return
+	end
+
+	-- If active with different branch, check for progress before overwriting
+	if state.state.active then
+		local reviewed, total = state.get_counts()
+		if reviewed > 0 and not opts.force then
+			-- Prompt for confirmation
+			local msg = string.format(
+				"You have %d/%d files reviewed in the current review (%s).\nStart new review against %s? This will lose your progress.",
+				reviewed,
+				total,
+				state.state.branch,
+				branch
+			)
+			vim.ui.select({ "No, keep current review", "Yes, start new review" }, {
+				prompt = msg,
+			}, function(choice)
+				if choice == "Yes, start new review" then
+					M.close()
+					start_review(branch)
+				else
+					vim.notify("Review cancelled", vim.log.levels.INFO)
+				end
+			end)
+			return
+		end
+		M.close()
+	end
+
+	start_review(branch)
 end
 
 -- Close the review session
