@@ -49,7 +49,14 @@ end
 -- Show help popup
 function M.show_help()
 	local help_lines = get_help_lines()
-	local width = 28
+
+	-- Calculate width based on longest line
+	local width = 0
+	for _, line in ipairs(help_lines) do
+		width = math.max(width, vim.fn.strdisplaywidth(line))
+	end
+	width = width + 2 -- Add padding
+
 	local height = #help_lines
 
 	-- Create buffer
