@@ -7,7 +7,7 @@ local config = require("code-review.config")
 M.state = {
 	active = false,
 	branch = nil,
-	files = {}, -- { [path] = { reviewed = bool } }
+	files = {}, -- { [path] = { reviewed = bool, diff_hash = string|nil } }
 	tab_id = nil,
 	list_buf = nil,
 	list_win = nil,
@@ -15,6 +15,17 @@ M.state = {
 	git_dir = nil,
 	unified_enabled = false, -- Whether unified.nvim inline diff is enabled
 }
+
+-- Get a hash of the diff for a specific file
+-- This is used to detect when file content has changed since review
+local function get_diff_hash(branch, filepath)
+	local cmd = string.format("git diff %s -- %s 2>/dev/null | md5sum | cut -d' ' -f1", branch, vim.fn.shellescape(filepath))
+	local result = vim.fn.systemlist(cmd)
+	if vim.v.shell_error ~= 0 or not result[1] then
+		return nil
+	end
+	return result[1]
+end
 
 -- Get the git directory for the current repo
 local function get_git_dir()
@@ -71,7 +82,10 @@ function M.save()
 	local reviewed = {}
 	for filepath, info in pairs(M.state.files) do
 		if info.reviewed then
-			table.insert(reviewed, filepath)
+			table.insert(reviewed, {
+				path = filepath,
+				diff_hash = info.diff_hash,
+			})
 		end
 	end
 
@@ -128,18 +142,35 @@ function M.init(branch)
 
 	-- Load persisted state if same branch
 	local persisted = M.load()
-	local reviewed_set = {}
+	local reviewed_map = {}
 	if persisted and persisted.branch == branch and persisted.reviewed then
-		for _, path in ipairs(persisted.reviewed) do
-			reviewed_set[path] = true
+		for _, item in ipairs(persisted.reviewed) do
+			-- Support both old format (string) and new format (table with path and diff_hash)
+			if type(item) == "string" then
+				reviewed_map[item] = { diff_hash = nil }
+			elseif type(item) == "table" and item.path then
+				reviewed_map[item.path] = { diff_hash = item.diff_hash }
+			end
 		end
 	end
 
 	-- Build files table
 	M.state.files = {}
 	for _, filepath in ipairs(files) do
+		local current_hash = get_diff_hash(branch, filepath)
+		local persisted_info = reviewed_map[filepath]
+
+		-- Only preserve reviewed state if diff hash matches (or no hash stored - legacy)
+		local was_reviewed = false
+		if persisted_info then
+			if persisted_info.diff_hash == nil or persisted_info.diff_hash == current_hash then
+				was_reviewed = true
+			end
+		end
+
 		M.state.files[filepath] = {
-			reviewed = reviewed_set[filepath] or false,
+			reviewed = was_reviewed,
+			diff_hash = current_hash,
 		}
 	end
 
@@ -159,6 +190,10 @@ function M.toggle_reviewed(filepath)
 	end
 
 	M.state.files[filepath].reviewed = not M.state.files[filepath].reviewed
+	-- Capture diff hash when marking as reviewed
+	if M.state.files[filepath].reviewed then
+		M.state.files[filepath].diff_hash = get_diff_hash(M.state.branch, filepath)
+	end
 	M.save()
 	return true
 end
@@ -171,6 +206,8 @@ function M.mark_reviewed(filepath)
 
 	if not M.state.files[filepath].reviewed then
 		M.state.files[filepath].reviewed = true
+		-- Capture diff hash when marking as reviewed
+		M.state.files[filepath].diff_hash = get_diff_hash(M.state.branch, filepath)
 		M.save()
 		return true
 	end
@@ -185,6 +222,7 @@ function M.mark_unreviewed(filepath)
 
 	if M.state.files[filepath].reviewed then
 		M.state.files[filepath].reviewed = false
+		M.state.files[filepath].diff_hash = nil
 		M.save()
 		return true
 	end
@@ -236,7 +274,7 @@ function M.get_first_unreviewed()
 	return nil
 end
 
--- Refresh file list from git (preserving reviewed state)
+-- Refresh file list from git (preserving reviewed state only if diff unchanged)
 function M.refresh()
 	if not M.state.active or not M.state.branch then
 		return false
@@ -247,18 +285,40 @@ function M.refresh()
 		return false
 	end
 
-	-- Build new files table, preserving reviewed state
+	-- Build new files table, preserving reviewed state only if diff hash matches
 	local old_files = M.state.files
 	M.state.files = {}
+	local invalidated = {}
 
 	for _, filepath in ipairs(files) do
-		local was_reviewed = old_files[filepath] and old_files[filepath].reviewed or false
+		local current_hash = get_diff_hash(M.state.branch, filepath)
+		local old_info = old_files[filepath]
+		local was_reviewed = false
+
+		if old_info and old_info.reviewed then
+			-- Only preserve reviewed state if diff hash matches (or no hash stored - legacy)
+			if old_info.diff_hash == nil or old_info.diff_hash == current_hash then
+				was_reviewed = true
+			else
+				-- Diff changed since review, track for notification
+				table.insert(invalidated, filepath)
+			end
+		end
+
 		M.state.files[filepath] = {
 			reviewed = was_reviewed,
+			diff_hash = current_hash,
 		}
 	end
 
 	M.save()
+
+	-- Notify about invalidated reviews
+	if #invalidated > 0 then
+		local msg = string.format("Code Review: %d file(s) changed since review, marked unreviewed", #invalidated)
+		vim.notify(msg, vim.log.levels.WARN)
+	end
+
 	return true
 end
 
