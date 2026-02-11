@@ -27,7 +27,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
   dependencies = {
     "lewis6991/gitsigns.nvim", -- optional but recommended
     "nvim-tree/nvim-web-devicons", -- optional
-    { "axkirillov/unified.nvim" }, -- optional, for inline diff view
+    { "axkirillov/unified.nvim", opts = {} }, -- optional, for inline diff view
   },
   keys = {
     { "<leader>cr", "<cmd>Review<cr>", desc = "Start code review" },
