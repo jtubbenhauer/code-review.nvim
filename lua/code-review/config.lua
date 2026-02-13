@@ -27,6 +27,18 @@ local defaults = {
 		open_next_unreviewed = "<C-n>",
 		help = "g?",
 	},
+
+	-- Global keymaps (set to false to disable)
+	global_keymaps = {
+		start = "<leader>cr",
+		start_local = "<leader>crl",
+		close = "<leader>crc",
+		refresh = "<leader>crr",
+		mark_and_next = "<leader>crn",
+		toggle_reviewed = "<leader>crm",
+		next_unreviewed = "<leader>cru",
+		toggle_unified_diff = "<leader>crd",
+	},
 }
 
 M.options = vim.deepcopy(defaults)

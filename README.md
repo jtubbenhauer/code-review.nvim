@@ -29,39 +29,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
     "nvim-tree/nvim-web-devicons", -- optional
     { "axkirillov/unified.nvim", opts = {} }, -- optional, for inline diff view
   },
-  keys = {
-    { "<leader>cr", "<cmd>Review<cr>", desc = "Start code review" },
-    { "<leader>crc", "<cmd>ReviewClose<cr>", desc = "Close code review" },
-    { "<leader>crr", "<cmd>ReviewRefresh<cr>", desc = "Refresh code review" },
-    {
-      "<leader>crn",
-      function()
-        require("code-review").mark_and_next()
-      end,
-      desc = "Mark reviewed & next",
-    },
-    {
-      "<leader>crm",
-      function()
-        require("code-review").toggle_reviewed()
-      end,
-      desc = "Toggle reviewed",
-    },
-    {
-      "<leader>cru",
-      function()
-        require("code-review").next_unreviewed()
-      end,
-      desc = "Next unreviewed",
-    },
-    {
-      "<leader>crd",
-      function()
-        require("code-review").toggle_unified_diff()
-      end,
-      desc = "Toggle unified diff",
-    },
-  },
+  cmd = { "Review", "ReviewLocal", "ReviewClose", "ReviewRefresh" },
   opts = {},
 }
 ```
@@ -71,6 +39,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 ### Commands
 
 - `:Review [branch]` - Start a review session against branch (default: `origin/HEAD`)
+- `:ReviewLocal` - Review uncommitted changes (staged, unstaged, and untracked) against HEAD
 - `:ReviewClose` - Close the review session
 - `:ReviewRefresh` - Refresh the file list from git
 
@@ -79,6 +48,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 | Key           | Action                    |
 | ------------- | ------------------------- |
 | `<leader>cr`  | Start code review         |
+| `<leader>crl` | Review uncommitted changes|
 | `<leader>crc` | Close code review         |
 | `<leader>crr` | Refresh file list         |
 | `<leader>crn` | Mark reviewed & open next |
@@ -105,6 +75,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 local cr = require("code-review")
 
 cr.start("origin/main")      -- Start review against branch
+cr.start_local()             -- Review uncommitted changes against HEAD
 cr.close()                   -- Close review session
 cr.refresh()                 -- Refresh file list
 cr.mark_reviewed()           -- Mark current file as reviewed
@@ -143,6 +114,18 @@ require("code-review").setup({
     prev_unreviewed = "[u",
     open_next_unreviewed = "<C-n>",
     help = "g?",
+  },
+
+  -- Global keymaps registered on setup (set to false to disable)
+  global_keymaps = {
+    start = "<leader>cr",
+    start_local = "<leader>crl",
+    close = "<leader>crc",
+    refresh = "<leader>crr",
+    mark_and_next = "<leader>crn",
+    toggle_reviewed = "<leader>crm",
+    next_unreviewed = "<leader>cru",
+    toggle_unified_diff = "<leader>crd",
   },
 })
 ```

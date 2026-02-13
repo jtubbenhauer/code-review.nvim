@@ -17,6 +17,20 @@ local function get_help_lines()
 		end
 	end
 
+	local gkm = config.options.global_keymaps
+
+	-- Helper to format a keymap line: pad lhs to fixed width then append description
+	local function kline(lhs, desc)
+		if not lhs then
+			return nil
+		end
+		local pad = 15 - vim.fn.strdisplaywidth(lhs)
+		if pad < 1 then
+			pad = 1
+		end
+		return lhs .. string.rep(" ", pad) .. desc
+	end
+
 	local lines = {
 		"Code Review Help",
 		"════════════════════════════",
@@ -30,30 +44,41 @@ local function get_help_lines()
 		"",
 		"File List Keymaps",
 		"─────────────────",
-		(km.open or "<CR>") .. "/" .. (km.open_alt or "o") .. "      Open file",
-		(km.toggle_reviewed or "r") .. "           Toggle reviewed",
-		(km.refresh or "R") .. "           Refresh file list",
-		(km.close or "q") .. "           Close review",
-		(km.next_unreviewed or "]u") .. "          Next unreviewed",
-		(km.prev_unreviewed or "[u") .. "          Prev unreviewed",
-		(km.open_next_unreviewed or "<C-n>") .. "       Open next unreviewed",
-		(km.help or "g?") .. "          Show this help",
+		kline((km.open or "<CR>") .. "/" .. (km.open_alt or "o"), "Open file"),
+		kline(km.toggle_reviewed or "r", "Toggle reviewed"),
+		kline(km.refresh or "R", "Refresh file list"),
+		kline(km.close or "q", "Close review"),
+		kline(km.next_unreviewed or "]u", "Next unreviewed"),
+		kline(km.prev_unreviewed or "[u", "Prev unreviewed"),
+		kline(km.open_next_unreviewed or "<C-n>", "Open next unreviewed"),
+		kline(km.help or "g?", "Show this help"),
 		"",
 		"Global Keymaps",
 		"──────────────",
-		"<leader>cr     Start review",
-		"<leader>crc    Close review",
-		"<leader>crr    Refresh",
-		"<leader>crn    Mark reviewed & next",
-		"<leader>crm    Toggle reviewed",
-		"<leader>cru    Next unreviewed",
-		"<leader>crl    Start local review",
 	}
+
+	-- Build global keymaps section dynamically from config
+	local global_entries = {
+		{ key = "start", desc = "Start review" },
+		{ key = "start_local", desc = "Start local review" },
+		{ key = "close", desc = "Close review" },
+		{ key = "refresh", desc = "Refresh" },
+		{ key = "mark_and_next", desc = "Mark reviewed & next" },
+		{ key = "toggle_reviewed", desc = "Toggle reviewed" },
+		{ key = "next_unreviewed", desc = "Next unreviewed" },
+	}
+	for _, entry in ipairs(global_entries) do
+		if gkm[entry.key] then
+			table.insert(lines, kline(gkm[entry.key], entry.desc))
+		end
+	end
 
 	-- Add unified diff info if available
 	local unified = require("code-review.unified")
 	if unified.available() then
-		table.insert(lines, "<leader>crd    Toggle unified diff")
+		if gkm.toggle_unified_diff then
+			table.insert(lines, kline(gkm.toggle_unified_diff, "Toggle unified diff"))
+		end
 		table.insert(lines, "")
 		table.insert(lines, "Unified diff: " .. (state.state.unified_enabled and "ON" or "OFF"))
 	end
