@@ -14,6 +14,18 @@ local defaults = {
 		unreviewed = " ",
 	},
 
+	-- Git status indicators shown next to each file (set to false to hide)
+	status_icons = {
+		M = "M", -- modified
+		A = "A", -- added
+		D = "D", -- deleted
+		R = "R", -- renamed
+		C = "C", -- copied
+		T = "T", -- type changed
+		U = "U", -- unmerged
+		["?"] = "?", -- untracked
+	},
+
 	-- Keymaps for the file list buffer
 	-- Set to false to disable a keymap
 	keymaps = {
@@ -26,18 +38,6 @@ local defaults = {
 		prev_unreviewed = "[u",
 		open_next_unreviewed = "<C-n>",
 		help = "g?",
-	},
-
-	-- Global keymaps (set to false to disable)
-	global_keymaps = {
-		start = "<leader>cr",
-		start_local = "<leader>crl",
-		close = "<leader>crc",
-		refresh = "<leader>crr",
-		mark_and_next = "<leader>crn",
-		toggle_reviewed = "<leader>crm",
-		next_unreviewed = "<leader>cru",
-		toggle_unified_diff = "<leader>crd",
 	},
 }
 

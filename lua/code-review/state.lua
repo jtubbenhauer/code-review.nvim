@@ -131,24 +131,37 @@ end
 function M.get_changed_files(branch)
 	branch = branch or config.options.default_branch
 
-	-- Use two-dot syntax to include both committed AND uncommitted changes
-	-- (three-dot only shows committed changes between merge-base and HEAD)
-	local cmd = string.format("git diff --name-only %s 2>/dev/null", branch)
-	local files = vim.fn.systemlist(cmd)
+	-- Use --name-status to capture the git status letter (M/A/D/R/C etc.)
+	local cmd = string.format("git diff --name-status %s 2>/dev/null", branch)
+	local raw = vim.fn.systemlist(cmd)
 
 	if vim.v.shell_error ~= 0 then
 		return nil
 	end
 
+	local files = {} -- { path, git_status }
+	local seen = {}
+	for _, line in ipairs(raw) do
+		-- Format: "M\tpath" or "R100\told\tnew"
+		local status, path = line:match("^(%S+)\t(.+)$")
+		if status and path then
+			-- For renames/copies (R100, C100), path is "old\tnew" – use the new path
+			local rename_new = path:match("\t(.+)$")
+			if rename_new then
+				path = rename_new
+			end
+			-- Normalise status letter (R100 -> R, C100 -> C)
+			local letter = status:sub(1, 1)
+			table.insert(files, { path = path, git_status = letter })
+			seen[path] = true
+		end
+	end
+
 	-- Also include untracked files (git diff doesn't show them)
 	local untracked = get_untracked_files()
-	local seen = {}
-	for _, f in ipairs(files) do
-		seen[f] = true
-	end
 	for _, f in ipairs(untracked) do
 		if not seen[f] then
-			table.insert(files, f)
+			table.insert(files, { path = f, git_status = "?" })
 			seen[f] = true
 		end
 	end
@@ -191,7 +204,8 @@ function M.init(branch, mode)
 
 	-- Build files table
 	M.state.files = {}
-	for _, filepath in ipairs(files) do
+	for _, entry in ipairs(files) do
+		local filepath = entry.path
 		local current_hash = get_diff_hash(branch, filepath)
 		local persisted_info = reviewed_map[filepath]
 
@@ -206,6 +220,7 @@ function M.init(branch, mode)
 		M.state.files[filepath] = {
 			reviewed = was_reviewed,
 			diff_hash = current_hash,
+			git_status = entry.git_status,
 		}
 	end
 
@@ -272,6 +287,7 @@ function M.get_file_list()
 		table.insert(list, {
 			path = filepath,
 			reviewed = info.reviewed,
+			git_status = info.git_status,
 		})
 	end
 
@@ -326,7 +342,8 @@ function M.refresh()
 	M.state.files = {}
 	local invalidated = {}
 
-	for _, filepath in ipairs(files) do
+	for _, entry in ipairs(files) do
+		local filepath = entry.path
 		local current_hash = get_diff_hash(M.state.branch, filepath)
 		local old_info = old_files[filepath]
 		local was_reviewed = false
@@ -344,6 +361,7 @@ function M.refresh()
 		M.state.files[filepath] = {
 			reviewed = was_reviewed,
 			diff_hash = current_hash,
+			git_status = entry.git_status,
 		}
 	end
 

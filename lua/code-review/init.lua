@@ -334,43 +334,6 @@ function M.setup(opts)
 	end, {
 		desc = "Refresh code review file list",
 	})
-
-	-- Register global keymaps
-	local gk = config.options.global_keymaps
-	local map = vim.keymap.set
-
-	if gk.start then
-		map("n", gk.start, "<cmd>Review<cr>", { desc = "Start code review" })
-	end
-	if gk.start_local then
-		map("n", gk.start_local, "<cmd>ReviewLocal<cr>", { desc = "Review uncommitted changes" })
-	end
-	if gk.close then
-		map("n", gk.close, "<cmd>ReviewClose<cr>", { desc = "Close code review" })
-	end
-	if gk.refresh then
-		map("n", gk.refresh, "<cmd>ReviewRefresh<cr>", { desc = "Refresh code review" })
-	end
-	if gk.mark_and_next then
-		map("n", gk.mark_and_next, function()
-			M.mark_and_next()
-		end, { desc = "Mark reviewed & next" })
-	end
-	if gk.toggle_reviewed then
-		map("n", gk.toggle_reviewed, function()
-			M.toggle_reviewed()
-		end, { desc = "Toggle reviewed" })
-	end
-	if gk.next_unreviewed then
-		map("n", gk.next_unreviewed, function()
-			M.next_unreviewed()
-		end, { desc = "Next unreviewed" })
-	end
-	if gk.toggle_unified_diff then
-		map("n", gk.toggle_unified_diff, function()
-			M.toggle_unified_diff()
-		end, { desc = "Toggle unified diff" })
-	end
 end
 
 return M

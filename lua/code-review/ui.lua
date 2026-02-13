@@ -17,8 +17,6 @@ local function get_help_lines()
 		end
 	end
 
-	local gkm = config.options.global_keymaps
-
 	-- Helper to format a keymap line: pad lhs to fixed width then append description
 	local function kline(lhs, desc)
 		if not lhs then
@@ -52,33 +50,11 @@ local function get_help_lines()
 		kline(km.prev_unreviewed or "[u", "Prev unreviewed"),
 		kline(km.open_next_unreviewed or "<C-n>", "Open next unreviewed"),
 		kline(km.help or "g?", "Show this help"),
-		"",
-		"Global Keymaps",
-		"──────────────",
 	}
-
-	-- Build global keymaps section dynamically from config
-	local global_entries = {
-		{ key = "start", desc = "Start review" },
-		{ key = "start_local", desc = "Start local review" },
-		{ key = "close", desc = "Close review" },
-		{ key = "refresh", desc = "Refresh" },
-		{ key = "mark_and_next", desc = "Mark reviewed & next" },
-		{ key = "toggle_reviewed", desc = "Toggle reviewed" },
-		{ key = "next_unreviewed", desc = "Next unreviewed" },
-	}
-	for _, entry in ipairs(global_entries) do
-		if gkm[entry.key] then
-			table.insert(lines, kline(gkm[entry.key], entry.desc))
-		end
-	end
 
 	-- Add unified diff info if available
 	local unified = require("code-review.unified")
 	if unified.available() then
-		if gkm.toggle_unified_diff then
-			table.insert(lines, kline(gkm.toggle_unified_diff, "Toggle unified diff"))
-		end
 		table.insert(lines, "")
 		table.insert(lines, "Unified diff: " .. (state.state.unified_enabled and "ON" or "OFF"))
 	end

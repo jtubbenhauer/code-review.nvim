@@ -10,6 +10,18 @@ local has_devicons, devicons = pcall(require, "nvim-web-devicons")
 -- Namespace for highlights
 local ns = vim.api.nvim_create_namespace("code_review_list")
 
+-- Map git status letters to highlight groups
+local status_hl_map = {
+	M = "DiffChanged", -- modified
+	A = "DiffAdded", -- added
+	D = "DiffRemoved", -- deleted
+	R = "DiffChanged", -- renamed
+	C = "DiffAdded", -- copied
+	T = "DiffChanged", -- type changed
+	U = "DiagnosticError", -- unmerged
+	["?"] = "DiffAdded", -- untracked
+}
+
 -- Get icon for a file
 local function get_icon(filepath)
 	if not has_devicons then
@@ -35,6 +47,7 @@ function M.render()
 	end
 
 	local icons = config.options.icons
+	local status_icons = config.options.status_icons
 	local files = state.get_file_list()
 	local lines = {}
 	local highlights = {}
@@ -42,19 +55,26 @@ function M.render()
 	for i, file in ipairs(files) do
 		local icon, icon_hl = get_icon(file.path)
 		local check = file.reviewed and (icons.reviewed .. " ") or (icons.unreviewed .. " ")
+		local git_status = file.git_status or "M"
+		local status_char = (status_icons and status_icons[git_status]) or git_status
 		local display_name = get_filename(file.path)
-		local line = check .. icon .. " " .. display_name
+		local line = check .. status_char .. " " .. icon .. " " .. display_name
 
 		table.insert(lines, line)
 
 		-- Store highlight info
+		local status_start = #check
+		local status_end = status_start + #status_char
 		table.insert(highlights, {
 			line = i - 1, -- 0-indexed
 			reviewed = file.reviewed,
 			icon_hl = icon_hl,
-			icon_start = #check,
-			icon_end = #check + #icon,
-			path_start = #check + #icon + 1,
+			icon_start = status_end + 1,
+			icon_end = status_end + 1 + #icon,
+			path_start = status_end + 1 + #icon + 1,
+			status_start = status_start,
+			status_end = status_end,
+			status_hl = status_hl_map[git_status] or "Comment",
 		})
 	end
 
@@ -73,6 +93,9 @@ function M.render()
 		if hl.reviewed then
 			vim.api.nvim_buf_add_highlight(buf, ns, "DiagnosticOk", hl.line, 0, 1)
 		end
+
+		-- Git status highlight
+		vim.api.nvim_buf_add_highlight(buf, ns, hl.status_hl, hl.line, hl.status_start, hl.status_end)
 
 		-- Icon highlight
 		if hl.icon_hl then

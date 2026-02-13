@@ -43,18 +43,27 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 - `:ReviewClose` - Close the review session
 - `:ReviewRefresh` - Refresh the file list from git
 
-### Global Keymaps
+### Suggested Keymaps
 
-| Key           | Action                    |
-| ------------- | ------------------------- |
-| `<leader>cr`  | Start code review         |
-| `<leader>crl` | Review uncommitted changes|
-| `<leader>crc` | Close code review         |
-| `<leader>crr` | Refresh file list         |
-| `<leader>crn` | Mark reviewed & open next |
-| `<leader>crm` | Toggle reviewed state     |
-| `<leader>cru` | Jump to next unreviewed   |
-| `<leader>crd` | Toggle unified diff view  |
+The plugin doesn't register any global keymaps — add your own in the Lazy spec or your config:
+
+```lua
+{
+  "jtubbenhauer/code-review.nvim",
+  cmd = { "Review", "ReviewLocal", "ReviewClose", "ReviewRefresh" },
+  keys = {
+    { "<leader>cr",  "<cmd>Review<cr>",        desc = "Start code review" },
+    { "<leader>crl", "<cmd>ReviewLocal<cr>",    desc = "Review local changes" },
+    { "<leader>crc", "<cmd>ReviewClose<cr>",    desc = "Close code review" },
+    { "<leader>crr", "<cmd>ReviewRefresh<cr>",  desc = "Refresh code review" },
+    { "<leader>crn", function() require("code-review").mark_and_next() end,       desc = "Mark reviewed & next" },
+    { "<leader>crm", function() require("code-review").toggle_reviewed() end,     desc = "Toggle reviewed" },
+    { "<leader>cru", function() require("code-review").next_unreviewed() end,     desc = "Next unreviewed" },
+    { "<leader>crd", function() require("code-review").toggle_unified_diff() end, desc = "Toggle unified diff" },
+  },
+  opts = {},
+}
+```
 
 ### File List Keymaps
 
@@ -114,18 +123,6 @@ require("code-review").setup({
     prev_unreviewed = "[u",
     open_next_unreviewed = "<C-n>",
     help = "g?",
-  },
-
-  -- Global keymaps registered on setup (set to false to disable)
-  global_keymaps = {
-    start = "<leader>cr",
-    start_local = "<leader>crl",
-    close = "<leader>crc",
-    refresh = "<leader>crr",
-    mark_and_next = "<leader>crn",
-    toggle_reviewed = "<leader>crm",
-    next_unreviewed = "<leader>cru",
-    toggle_unified_diff = "<leader>crd",
   },
 })
 ```
