@@ -18,10 +18,9 @@ local function start_review(branch, mode)
 		return
 	end
 
-	-- Set up gitsigns to diff against target branch
 	local ok, gitsigns = pcall(require, "gitsigns")
 	if ok then
-		gitsigns.change_base(branch, true)
+		gitsigns.change_base(state.state.diff_base, true)
 	end
 
 	-- Set up autocmds

@@ -49,7 +49,7 @@ function M.setup()
 
 			-- Check if file still has changes against the base branch
 			local cmd =
-				string.format("git diff --quiet %s -- %s 2>/dev/null", state.state.branch, vim.fn.shellescape(filepath))
+				string.format("git diff --quiet %s -- %s 2>/dev/null", state.state.diff_base, vim.fn.shellescape(filepath))
 			vim.fn.system(cmd)
 			local has_changes = vim.v.shell_error ~= 0
 
@@ -143,7 +143,7 @@ function M.check_and_refresh()
 		return
 	end
 
-	local current_files = state.get_changed_files(state.state.branch)
+	local current_files = state.get_changed_files(state.state.diff_base)
 	if not current_files then
 		return
 	end

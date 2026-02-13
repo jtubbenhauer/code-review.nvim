@@ -91,7 +91,7 @@ function M.show_current()
 	-- Use unified's diff module to show diff against our branch
 	local ok, diff = pcall(require, "unified.diff")
 	if ok and diff.show then
-		return diff.show(state.state.branch, buf)
+		return diff.show(state.state.diff_base, buf)
 	end
 
 	return false

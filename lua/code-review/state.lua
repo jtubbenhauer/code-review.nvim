@@ -7,6 +7,7 @@ local config = require("code-review.config")
 M.state = {
 	active = false,
 	branch = nil,
+	diff_base = nil, -- resolved merge-base ref used for actual diffs
 	mode = "branch", -- "branch" (diff against remote branch) or "local" (diff against HEAD)
 	files = {}, -- { [path] = { reviewed = bool, diff_hash = string|nil } }
 	tab_id = nil,
@@ -127,6 +128,15 @@ local function get_untracked_files()
 	return files
 end
 
+local function compute_diff_base(branch)
+	local cmd = string.format("git merge-base HEAD %s 2>/dev/null", branch)
+	local result = vim.fn.systemlist(cmd)
+	if vim.v.shell_error ~= 0 or not result[1] then
+		return branch
+	end
+	return result[1]
+end
+
 -- Get list of changed files from git
 function M.get_changed_files(branch)
 	branch = branch or config.options.default_branch
@@ -182,7 +192,9 @@ function M.init(branch, mode)
 		return false
 	end
 
-	local files = M.get_changed_files(branch)
+	local diff_base = (mode == "branch") and compute_diff_base(branch) or branch
+
+	local files = M.get_changed_files(diff_base)
 	if not files or #files == 0 then
 		vim.notify("No changed files against " .. branch, vim.log.levels.WARN)
 		return false
@@ -206,7 +218,7 @@ function M.init(branch, mode)
 	M.state.files = {}
 	for _, entry in ipairs(files) do
 		local filepath = entry.path
-		local current_hash = get_diff_hash(branch, filepath)
+		local current_hash = get_diff_hash(diff_base, filepath)
 		local persisted_info = reviewed_map[filepath]
 
 		-- Only preserve reviewed state if diff hash matches (or no hash stored - legacy)
@@ -225,6 +237,7 @@ function M.init(branch, mode)
 	end
 
 	M.state.branch = branch
+	M.state.diff_base = diff_base
 	M.state.mode = mode
 	M.state.active = true
 
@@ -241,9 +254,8 @@ function M.toggle_reviewed(filepath)
 	end
 
 	M.state.files[filepath].reviewed = not M.state.files[filepath].reviewed
-	-- Capture diff hash when marking as reviewed
 	if M.state.files[filepath].reviewed then
-		M.state.files[filepath].diff_hash = get_diff_hash(M.state.branch, filepath)
+		M.state.files[filepath].diff_hash = get_diff_hash(M.state.diff_base, filepath)
 	end
 	M.save()
 	return true
@@ -257,8 +269,7 @@ function M.mark_reviewed(filepath)
 
 	if not M.state.files[filepath].reviewed then
 		M.state.files[filepath].reviewed = true
-		-- Capture diff hash when marking as reviewed
-		M.state.files[filepath].diff_hash = get_diff_hash(M.state.branch, filepath)
+		M.state.files[filepath].diff_hash = get_diff_hash(M.state.diff_base, filepath)
 		M.save()
 		return true
 	end
@@ -332,7 +343,7 @@ function M.refresh()
 		return false
 	end
 
-	local files = M.get_changed_files(M.state.branch)
+	local files = M.get_changed_files(M.state.diff_base)
 	if not files then
 		return false
 	end
@@ -344,7 +355,7 @@ function M.refresh()
 
 	for _, entry in ipairs(files) do
 		local filepath = entry.path
-		local current_hash = get_diff_hash(M.state.branch, filepath)
+		local current_hash = get_diff_hash(M.state.diff_base, filepath)
 		local old_info = old_files[filepath]
 		local was_reviewed = false
 
@@ -381,6 +392,7 @@ function M.reset()
 	M.state = {
 		active = false,
 		branch = nil,
+		diff_base = nil,
 		mode = "branch",
 		files = {},
 		tab_id = nil,
