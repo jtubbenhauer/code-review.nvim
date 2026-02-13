@@ -7,9 +7,26 @@ local config = require("code-review.config")
 -- Help text for the file list (generated dynamically from config)
 local function get_help_lines()
 	local km = config.options.keymaps
+	-- Determine current mode for display
+	local mode_info = ""
+	if state.state.active then
+		if state.state.mode == "local" then
+			mode_info = "Mode: local (uncommitted changes)"
+		else
+			mode_info = "Mode: branch (" .. (state.state.branch or "?") .. ")"
+		end
+	end
+
 	local lines = {
 		"Code Review Help",
 		"════════════════════════════",
+		"",
+		"Commands",
+		"────────",
+		":Review [branch]   Review changes vs branch",
+		":ReviewLocal       Review uncommitted changes",
+		":ReviewClose       Close review session",
+		":ReviewRefresh     Refresh file list",
 		"",
 		"File List Keymaps",
 		"─────────────────",
@@ -30,6 +47,7 @@ local function get_help_lines()
 		"<leader>crn    Mark reviewed & next",
 		"<leader>crm    Toggle reviewed",
 		"<leader>cru    Next unreviewed",
+		"<leader>crl    Start local review",
 	}
 
 	-- Add unified diff info if available
@@ -41,6 +59,9 @@ local function get_help_lines()
 	end
 
 	table.insert(lines, "")
+	if mode_info ~= "" then
+		table.insert(lines, mode_info)
+	end
 	table.insert(lines, "Press any key to close")
 
 	return lines

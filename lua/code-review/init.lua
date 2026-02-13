@@ -8,10 +8,13 @@ local ui = require("code-review.ui")
 local autocmds = require("code-review.autocmds")
 
 -- Start or switch to a review session (internal, no confirmation)
----@param branch string Branch to diff against
-local function start_review(branch)
+---@param branch string Branch to diff against (or "HEAD" for local mode)
+---@param mode? string "branch" (default) or "local"
+local function start_review(branch, mode)
+	mode = mode or "branch"
+
 	-- Initialize state
-	if not state.init(branch) then
+	if not state.init(branch, mode) then
 		return
 	end
 
@@ -28,11 +31,12 @@ local function start_review(branch)
 	ui.create_layout()
 
 	local reviewed, total = state.get_counts()
+	local target = mode == "local" and "HEAD (uncommitted changes)" or branch
 	vim.notify(
 		string.format(
 			"Code Review: %d files to review against %s (%d already reviewed)",
 			total - reviewed,
-			branch,
+			target,
 			reviewed
 		),
 		vim.log.levels.INFO
@@ -84,6 +88,47 @@ function M.start(branch, opts)
 	end
 
 	start_review(branch)
+end
+
+-- Start a local review session (uncommitted changes against HEAD)
+function M.start_local()
+	-- If already active in local mode, just switch to tab
+	if state.state.active and state.state.mode == "local" then
+		if ui.switch_to_tab() then
+			return
+		end
+		-- Tab was closed, recreate UI without reinitializing state
+		ui.create_layout()
+		return
+	end
+
+	-- If active with a different review, check for progress before overwriting
+	if state.state.active then
+		local reviewed, total = state.get_counts()
+		if reviewed > 0 then
+			local current_target = state.state.mode == "local" and "HEAD" or state.state.branch
+			local msg = string.format(
+				"You have %d/%d files reviewed in the current review (%s).\nStart local review? This will lose your progress.",
+				reviewed,
+				total,
+				current_target
+			)
+			vim.ui.select({ "No, keep current review", "Yes, start local review" }, {
+				prompt = msg,
+			}, function(choice)
+				if choice == "Yes, start local review" then
+					M.close()
+					start_review("HEAD", "local")
+				else
+					vim.notify("Review cancelled", vim.log.levels.INFO)
+				end
+			end)
+			return
+		end
+		M.close()
+	end
+
+	start_review("HEAD", "local")
 end
 
 -- Close the review session
@@ -276,6 +321,12 @@ function M.setup(opts)
 		M.close()
 	end, {
 		desc = "Close code review session",
+	})
+
+	vim.api.nvim_create_user_command("ReviewLocal", function()
+		M.start_local()
+	end, {
+		desc = "Review uncommitted changes against HEAD",
 	})
 
 	vim.api.nvim_create_user_command("ReviewRefresh", function()

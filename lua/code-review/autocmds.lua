@@ -31,6 +31,22 @@ function M.setup()
 				return
 			end
 
+			-- Check if the file is tracked by git
+			local is_tracked_cmd =
+				string.format("git ls-files --error-unmatch %s 2>/dev/null", vim.fn.shellescape(filepath))
+			vim.fn.system(is_tracked_cmd)
+			local is_tracked = vim.v.shell_error == 0
+
+			if not is_tracked then
+				-- Untracked file: it's new, so it always "has changes"
+				-- If it was reviewed, mark it unreviewed since it was just saved (content changed)
+				if state.state.files[filepath].reviewed then
+					state.mark_unreviewed(filepath)
+					filelist.render()
+				end
+				return
+			end
+
 			-- Check if file still has changes against the base branch
 			local cmd =
 				string.format("git diff --quiet %s -- %s 2>/dev/null", state.state.branch, vim.fn.shellescape(filepath))

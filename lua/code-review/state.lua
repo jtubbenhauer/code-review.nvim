@@ -7,6 +7,7 @@ local config = require("code-review.config")
 M.state = {
 	active = false,
 	branch = nil,
+	mode = "branch", -- "branch" (diff against remote branch) or "local" (diff against HEAD)
 	files = {}, -- { [path] = { reviewed = bool, diff_hash = string|nil } }
 	tab_id = nil,
 	list_buf = nil,
@@ -19,10 +20,21 @@ M.state = {
 -- Get a hash of the diff for a specific file
 -- This is used to detect when file content has changed since review
 local function get_diff_hash(branch, filepath)
-	local cmd = string.format("git diff %s -- %s 2>/dev/null | md5sum | cut -d' ' -f1", branch, vim.fn.shellescape(filepath))
+	local escaped = vim.fn.shellescape(filepath)
+	local cmd = string.format("git diff %s -- %s 2>/dev/null | md5sum | cut -d' ' -f1", branch, escaped)
 	local result = vim.fn.systemlist(cmd)
-	if vim.v.shell_error ~= 0 or not result[1] then
-		return nil
+
+	-- d41d8cd98f00b204e9800998ecf8427e is md5 of empty string, meaning git diff
+	-- produced no output. This happens for untracked files when diffing against HEAD.
+	-- Fall back to hashing the file content directly.
+	local empty_md5 = "d41d8cd98f00b204e9800998ecf8427e"
+	if vim.v.shell_error ~= 0 or not result[1] or result[1] == empty_md5 then
+		local hash_cmd = string.format("md5sum %s 2>/dev/null | cut -d' ' -f1", escaped)
+		local hash_result = vim.fn.systemlist(hash_cmd)
+		if vim.v.shell_error ~= 0 or not hash_result[1] then
+			return nil
+		end
+		return hash_result[1]
 	end
 	return result[1]
 end
@@ -91,6 +103,7 @@ function M.save()
 
 	local data = {
 		branch = M.state.branch,
+		mode = M.state.mode,
 		reviewed = reviewed,
 	}
 
@@ -102,6 +115,16 @@ function M.save()
 	file:write(vim.json.encode(data))
 	file:close()
 	return true
+end
+
+-- Get list of untracked files (not yet added to git)
+local function get_untracked_files()
+	local cmd = "git ls-files --others --exclude-standard 2>/dev/null"
+	local files = vim.fn.systemlist(cmd)
+	if vim.v.shell_error ~= 0 then
+		return {}
+	end
+	return files
 end
 
 -- Get list of changed files from git
@@ -117,16 +140,28 @@ function M.get_changed_files(branch)
 		return nil
 	end
 
-	-- Also check for untracked files that might be new
-	-- (git diff doesn't show untracked files)
-	-- For now, we only show tracked files with changes
+	-- Also include untracked files (git diff doesn't show them)
+	local untracked = get_untracked_files()
+	local seen = {}
+	for _, f in ipairs(files) do
+		seen[f] = true
+	end
+	for _, f in ipairs(untracked) do
+		if not seen[f] then
+			table.insert(files, f)
+			seen[f] = true
+		end
+	end
 
 	return files
 end
 
 -- Initialize state for a new review session
-function M.init(branch)
+---@param branch string Branch to diff against (or "HEAD" for local mode)
+---@param mode? string "branch" (default) or "local"
+function M.init(branch, mode)
 	branch = branch or config.options.default_branch
+	mode = mode or "branch"
 
 	M.state.git_dir = get_git_dir()
 	if not M.state.git_dir then
@@ -140,10 +175,10 @@ function M.init(branch)
 		return false
 	end
 
-	-- Load persisted state if same branch
+	-- Load persisted state if same branch and mode
 	local persisted = M.load()
 	local reviewed_map = {}
-	if persisted and persisted.branch == branch and persisted.reviewed then
+	if persisted and persisted.branch == branch and (persisted.mode or "branch") == mode and persisted.reviewed then
 		for _, item in ipairs(persisted.reviewed) do
 			-- Support both old format (string) and new format (table with path and diff_hash)
 			if type(item) == "string" then
@@ -175,6 +210,7 @@ function M.init(branch)
 	end
 
 	M.state.branch = branch
+	M.state.mode = mode
 	M.state.active = true
 
 	-- Save immediately to persist branch
@@ -327,6 +363,7 @@ function M.reset()
 	M.state = {
 		active = false,
 		branch = nil,
+		mode = "branch",
 		files = {},
 		tab_id = nil,
 		list_buf = nil,
