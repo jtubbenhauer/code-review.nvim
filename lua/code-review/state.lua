@@ -337,6 +337,39 @@ function M.get_first_unreviewed()
 	return nil
 end
 
+-- Get next unreviewed file relative to the given path
+function M.get_next_unreviewed(current_path)
+	local files = M.get_file_list()
+	local current_idx = nil
+
+	for i, file in ipairs(files) do
+		if file.path == current_path then
+			current_idx = i
+			break
+		end
+	end
+
+	if not current_idx then
+		return M.get_first_unreviewed()
+	end
+
+	-- Search forward from current position
+	for i = current_idx + 1, #files do
+		if not files[i].reviewed then
+			return files[i].path
+		end
+	end
+
+	-- Wrap around from the beginning
+	for i = 1, current_idx - 1 do
+		if not files[i].reviewed then
+			return files[i].path
+		end
+	end
+
+	return nil
+end
+
 -- Refresh file list from git (preserving reviewed state only if diff unchanged)
 function M.refresh()
 	if not M.state.active or not M.state.branch then

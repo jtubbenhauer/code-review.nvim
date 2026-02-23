@@ -210,13 +210,14 @@ function M.mark_and_next()
 	end
 
 	local filepath = state.get_current_file_relative()
+
+	-- Determine next file BEFORE marking, so sort order hasn't shifted yet
+	local next_file = state.get_next_unreviewed(filepath)
+
 	state.mark_reviewed(filepath)
 
 	local filelist = require("code-review.filelist")
 	filelist.render()
-
-	-- Get next unreviewed file
-	local next_file = state.get_first_unreviewed()
 	if next_file then
 		ui.open_file(next_file)
 		-- Update cursor in list
@@ -239,7 +240,8 @@ function M.next_unreviewed()
 		return
 	end
 
-	local next_file = state.get_first_unreviewed()
+	local filepath = state.get_current_file_relative()
+	local next_file = state.get_next_unreviewed(filepath)
 	if next_file then
 		ui.open_file(next_file)
 		-- Update cursor in list
