@@ -18,6 +18,17 @@ M.state = {
 	unified_enabled = false, -- Whether unified.nvim inline diff is enabled
 }
 
+-- Cached file list (invalidated when state.files changes)
+local file_list_cache = nil
+
+-- Invalidate the file list cache (call whenever state.files is mutated)
+local function invalidate_cache()
+	file_list_cache = nil
+end
+
+-- Public cache invalidation for external callers that mutate state.files directly
+M.invalidate_file_list_cache = invalidate_cache
+
 -- Get a hash of the diff for a specific file
 -- This is used to detect when file content has changed since review
 local function get_diff_hash(branch, filepath)
@@ -216,6 +227,7 @@ function M.init(branch, mode)
 
 	-- Build files table
 	M.state.files = {}
+	invalidate_cache()
 	for _, entry in ipairs(files) do
 		local filepath = entry.path
 		local current_hash = get_diff_hash(diff_base, filepath)
@@ -257,6 +269,7 @@ function M.toggle_reviewed(filepath)
 	if M.state.files[filepath].reviewed then
 		M.state.files[filepath].diff_hash = get_diff_hash(M.state.diff_base, filepath)
 	end
+	invalidate_cache()
 	M.save()
 	return true
 end
@@ -270,6 +283,7 @@ function M.mark_reviewed(filepath)
 	if not M.state.files[filepath].reviewed then
 		M.state.files[filepath].reviewed = true
 		M.state.files[filepath].diff_hash = get_diff_hash(M.state.diff_base, filepath)
+		invalidate_cache()
 		M.save()
 		return true
 	end
@@ -285,14 +299,19 @@ function M.mark_unreviewed(filepath)
 	if M.state.files[filepath].reviewed then
 		M.state.files[filepath].reviewed = false
 		M.state.files[filepath].diff_hash = nil
+		invalidate_cache()
 		M.save()
 		return true
 	end
 	return false
 end
 
--- Get sorted list of files
+-- Get sorted list of files (cached)
 function M.get_file_list()
+	if file_list_cache then
+		return file_list_cache
+	end
+
 	local list = {}
 	for filepath, info in pairs(M.state.files) do
 		table.insert(list, {
@@ -310,6 +329,7 @@ function M.get_file_list()
 		return a.path < b.path
 	end)
 
+	file_list_cache = list
 	return list
 end
 
@@ -371,12 +391,13 @@ function M.get_next_unreviewed(current_path)
 end
 
 -- Refresh file list from git (preserving reviewed state only if diff unchanged)
-function M.refresh()
+-- @param changed_files? table Pre-fetched result from get_changed_files() to avoid redundant git call
+function M.refresh(changed_files)
 	if not M.state.active or not M.state.branch then
 		return false
 	end
 
-	local files = M.get_changed_files(M.state.diff_base)
+	local files = changed_files or M.get_changed_files(M.state.diff_base)
 	if not files then
 		return false
 	end
@@ -384,6 +405,7 @@ function M.refresh()
 	-- Build new files table, preserving reviewed state only if diff hash matches
 	local old_files = M.state.files
 	M.state.files = {}
+	invalidate_cache()
 	local invalidated = {}
 
 	for _, entry in ipairs(files) do
@@ -422,6 +444,7 @@ end
 
 -- Reset state
 function M.reset()
+	invalidate_cache()
 	M.state = {
 		active = false,
 		branch = nil,

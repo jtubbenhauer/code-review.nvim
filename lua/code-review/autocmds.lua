@@ -5,6 +5,22 @@ local state = require("code-review.state")
 
 local augroup = vim.api.nvim_create_augroup("CodeReview", { clear = true })
 
+-- Debounce: coalesces rapid calls so the callback only fires once after `ms` of silence.
+-- Returns a function that, when called, resets the timer and schedules the callback.
+local function debounce(ms, fn)
+	local timer = vim.uv.new_timer()
+	return function()
+		timer:stop()
+		timer:start(
+			ms,
+			0,
+			vim.schedule_wrap(function()
+				fn()
+			end)
+		)
+	end
+end
+
 -- Set up all autocommands
 function M.setup()
 	local filelist = require("code-review.filelist")
@@ -56,6 +72,7 @@ function M.setup()
 			if not has_changes then
 				-- File no longer has changes, remove from list
 				state.state.files[filepath] = nil
+				state.invalidate_file_list_cache()
 				state.save()
 				filelist.render()
 
@@ -87,7 +104,15 @@ function M.setup()
 		end,
 	})
 
-	-- Highlight current file in list when entering a buffer
+	-- Highlight current file in list when entering a buffer (debounced)
+	local highlight_debounced = debounce(50, function()
+		if not state.state.active then
+			return
+		end
+		local ui = require("code-review.ui")
+		ui.highlight_current_file()
+	end)
+
 	vim.api.nvim_create_autocmd("BufEnter", {
 		group = augroup,
 		pattern = "*",
@@ -95,12 +120,7 @@ function M.setup()
 			if not state.state.active then
 				return
 			end
-
-			-- Defer to avoid issues during buffer switching
-			vim.defer_fn(function()
-				local ui = require("code-review.ui")
-				ui.highlight_current_file()
-			end, 10)
+			highlight_debounced()
 		end,
 	})
 
@@ -121,18 +141,21 @@ function M.setup()
 		end,
 	})
 
-	-- Auto-refresh on focus gained
+	-- Auto-refresh on focus gained (debounced)
+	local focus_debounced = debounce(300, function()
+		if not state.state.active then
+			return
+		end
+		M.check_and_refresh()
+	end)
+
 	vim.api.nvim_create_autocmd("FocusGained", {
 		group = augroup,
 		callback = function()
 			if not state.state.active then
 				return
 			end
-
-			-- Defer to avoid issues
-			vim.defer_fn(function()
-				M.check_and_refresh()
-			end, 100)
+			focus_debounced()
 		end,
 	})
 end
@@ -159,7 +182,7 @@ function M.check_and_refresh()
 
 	if current_count ~= stored_count then
 		-- File list changed, refresh
-		state.refresh()
+		state.refresh(current_files)
 		filelist.render()
 		vim.notify("Code Review: File list updated", vim.log.levels.INFO)
 		return
@@ -168,13 +191,13 @@ function M.check_and_refresh()
 	-- Check if any files are different
 	local current_set = {}
 	for _, f in ipairs(current_files) do
-		current_set[f] = true
+		current_set[f.path] = true
 	end
 
 	for filepath in pairs(state.state.files) do
 		if not current_set[filepath] then
 			-- A file was removed/renamed
-			state.refresh()
+			state.refresh(current_files)
 			filelist.render()
 			vim.notify("Code Review: File list updated", vim.log.levels.INFO)
 			return

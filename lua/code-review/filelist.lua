@@ -10,6 +10,9 @@ local has_devicons, devicons = pcall(require, "nvim-web-devicons")
 -- Namespace for highlights
 local ns = vim.api.nvim_create_namespace("code_review_list")
 
+-- Render debounce timer: coalesces rapid render() calls into a single update
+local render_timer = vim.uv.new_timer()
+
 -- Map git status letters to highlight groups
 local status_hl_map = {
 	M = "DiffChanged", -- modified
@@ -39,8 +42,8 @@ local function get_filename(filepath)
 	return vim.fn.fnamemodify(filepath, ":t")
 end
 
--- Render the file list
-function M.render()
+-- Render the file list (actual implementation)
+local function do_render()
 	local buf = state.state.list_buf
 	if not buf or not vim.api.nvim_buf_is_valid(buf) then
 		return
@@ -115,6 +118,18 @@ function M.render()
 	local reviewed, total = state.get_counts()
 	local title = string.format("Code Review [%d/%d]", reviewed, total)
 	vim.api.nvim_buf_set_name(buf, title)
+end
+
+-- Debounced render: coalesces rapid calls within 10ms into a single render
+function M.render()
+	render_timer:stop()
+	render_timer:start(
+		10,
+		0,
+		vim.schedule_wrap(function()
+			do_render()
+		end)
+	)
 end
 
 return M
