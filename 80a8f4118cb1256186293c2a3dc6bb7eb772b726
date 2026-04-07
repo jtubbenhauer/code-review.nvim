@@ -1,0 +1,27 @@
+lua/code-review/state.lua
+  d2d74ab35a57948d 21-31,230,272,286,302,309,311-314,332,394-395,400,408,447
+lua/code-review/filelist.lua
+  d2d74ab35a57948d 13-15,45-46,123-132
+lua/code-review/autocmds.lua
+  d2d74ab35a57948d 8-23,75,107-115,123,144-151,158,185,194,200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "80a8f4118cb1256186293c2a3dc6bb7eb772b726",
+  "prompts": {
+    "d2d74ab35a57948d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_295aa56f5ffec93RN01tcWPBwt",
+        "model": "github-copilot/claude-opus-4.6"
+      },
+      "human_author": "Jack Tubbenhauer",
+      "messages": [],
+      "total_additions": 93,
+      "total_deletions": 32,
+      "accepted_lines": 82,
+      "overriden_lines": 0
+    }
+  }
+}
